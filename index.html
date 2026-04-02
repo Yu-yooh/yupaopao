@@ -2473,7 +2473,6 @@
         const btn = document.getElementById('btn-refresh-forum'); 
         btn.classList.add('disabled'); btn.innerText = '刷新中...';
 
-        // 随机抽取1-2个角色提供给AI，让AI决定是否用他们发帖
         const singleChars = appData.characters.filter(c => !c.isGroup);
         const shuffled = [...singleChars].sort(() => 0.5 - Math.random()); 
         const selectedChars = shuffled.slice(0, Math.min(2, shuffled.length));
@@ -2481,22 +2480,24 @@
         let charContexts = selectedChars.map(c => {
             let context = `角色名：${c.name}\n人设：${c.prompt.substring(0, 300)}...`;
             if (c.longTermMemory) context += `\n与用户的共同记忆：${c.longTermMemory}`;
+            if (c.userName) context += `\n该角色对用户的专属称呼是：${c.userName}`;
             return context;
         }).join('\n\n');
 
         const myName = appData.weibo.nickname || '我';
         
         const prompt = `你是一个论坛帖子生成器。请生成1到3个有趣的论坛帖子。
-当前看帖的用户设定：名字叫[${myName}]。
+当前看帖的【用户】设定：名字/称呼是“${myName}”。
 你可以使用以下角色作为发帖人或评论者（也可以编造路人NPC）：
 ${charContexts ? charContexts : '无特殊角色'}
 
 要求：
-1. 帖子可以是日常吐槽、求助、八卦、或者是与用户[${myName}]相关的事情。
+1. 帖子可以是日常吐槽、求助、八卦、或者是与用户（${myName}）相关的事情。
 2. 帖子可以是实名发布，也可以是“匿名”或“小号”。
 3. 如果是上面提供的角色发帖，请严格遵循TA的人设、记忆。并在 "innerThoughts" 字段中写下TA【为什么要发这个帖子】的真实心理活动。
-4. **每个帖子必须包含至少 10 条评论**。评论区要像真实的论坛一样，有沙发、吃瓜群众、楼主回复、甚至角色之间的互动。
-5. 严格返回 JSON 数组，格式如下（不要包含其他Markdown代码）：
+4. **重点注意**：当帖子正文或评论中提及用户（${myName}）时，请根据发帖人/评论者与用户的【关系设定】来决定对用户的称呼（例如：直呼其名、老板、学长、特定的昵称等）。**绝对不要**用“我”来指代用户，发帖人自称时才是“我”。
+5. **每个帖子必须包含至少 10 条评论**。评论区要像真实的论坛一样，有沙发、吃瓜群众、楼主回复、甚至角色之间的互动。
+6. 严格返回 JSON 数组，格式如下（不要包含其他Markdown代码）：
 [
   {
     "author": "发帖人显示的昵称",
@@ -2526,7 +2527,6 @@ ${charContexts ? charContexts : '无特殊角色'}
             if (data.choices && data.choices.length > 0) {
                 const parsed = extractJSON(data.choices[0].message.content);
                 if (parsed && Array.isArray(parsed)) {
-                    // 处理数据，生成 ID 和 默认点赞数
                     const newPosts = parsed.map(p => ({
                         id: Date.now() + Math.floor(Math.random() * 10000),
                         author: p.author || '匿名网友',
@@ -2541,7 +2541,6 @@ ${charContexts ? charContexts : '无特殊角色'}
                         comments: p.comments || []
                     }));
                     
-                    // 将新帖子加到前面，保留最多30条缓存
                     appData.forum.posts = [...newPosts, ...appData.forum.posts].slice(0, 30);
                     safeSaveData();
                     showNotification('论坛', '首页帖子已刷新', 'https://api.dicebear.com/7.x/shapes/svg?seed=forum');
@@ -2610,8 +2609,9 @@ ${charContexts ? charContexts : '无特殊角色'}
         if (!post) return;
 
         let charNames = appData.characters.filter(c=>!c.isGroup).map(c => c.name).join('、');
+        const myName = appData.weibo.nickname || '我';
         
-        const prompt = `用户在论坛发布了一条新帖。
+        const prompt = `用户（名字：${myName}）在论坛发布了一条新帖。
 标题：${post.title}
 内容：${post.content}
 发布状态：${post.isAnonymous ? '匿名' : '实名'}
@@ -2619,7 +2619,8 @@ ${charContexts ? charContexts : '无特殊角色'}
 请模拟论坛网友（路人NPC）或以下角色（${charNames || '无'}）对这个帖子进行回复。
 要求：
 1. 生成 5 到 10 条评论。
-2. 严格返回 JSON 数组格式：[{"author": "昵称", "content": "评论内容"}]`;
+2. **重点注意**：当评论中提及楼主（也就是用户 ${myName}）时，请根据评论者与楼主的关系使用合适的称呼。绝对不要用“我”来指代楼主。
+3. 严格返回 JSON 数组格式：[{"author": "昵称", "content": "评论内容"}]`;
 
         try {
             let apiUrl = activeApi.url; 
@@ -2633,7 +2634,7 @@ ${charContexts ? charContexts : '无特殊角色'}
                     safeSaveData(); 
                     showNotification('论坛', '你的帖子有了新回复', 'https://api.dicebear.com/7.x/shapes/svg?seed=forum'); 
                     if (currentForumPostId === postId) {
-                        openForumDetail(postId); // 刷新详情页
+                        openForumDetail(postId); 
                     }
                 }
             }
@@ -2663,14 +2664,14 @@ ${charContexts ? charContexts : '无特殊角色'}
         generateReplyToUserComment(post, text);
     }
 
-    async function generateReplyToUserComment(post, userComment) {
+      async function generateReplyToUserComment(post, userComment) {
         const activeApi = appData.apis.find(a => a.id === appData.activeApiId); 
         if (!activeApi) return;
 
         const myName = appData.weibo.nickname || '我';
         const previousComments = post.comments.slice(-5).map(c => `${c.author}: ${c.content}`).join('\n');
 
-        const prompt = `在论坛的一个帖子里，用户（${myName}）刚刚发表了一条评论。
+        const prompt = `在论坛的一个帖子里，用户（名字：${myName}）刚刚发表了一条评论。
 【原贴标题】：${post.title}
 【原贴内容】：${post.content}
 【原贴作者】：${post.author}
@@ -2678,7 +2679,9 @@ ${charContexts ? charContexts : '无特殊角色'}
 ${previousComments}
 
 请模拟楼主、原帖相关的角色、或者吃瓜网友，针对用户的新评论（"${userComment}"）生成 1 到 3 条互动回复。
-要求：严格返回 JSON 数组格式：[{"author": "回复者昵称", "content": "回复内容"}]`;
+要求：
+1. **重点注意**：当回复中提及该用户（${myName}）时，请根据回复者与该用户的关系使用合适的称呼。绝对不要用“我”来指代该用户。
+2. 严格返回 JSON 数组格式：[{"author": "回复者昵称", "content": "回复内容"}]`;
 
         try {
             let apiUrl = activeApi.url; 
@@ -2692,7 +2695,7 @@ ${previousComments}
                     safeSaveData(); 
                     showNotification('论坛', '有人回复了你的评论', 'https://api.dicebear.com/7.x/shapes/svg?seed=forum'); 
                     if (currentForumPostId === post.id) {
-                        openForumDetail(post.id); // 刷新详情页
+                        openForumDetail(post.id); 
                     }
                 }
             }
@@ -2702,4 +2705,4 @@ ${previousComments}
     init();
 </script>
 </body>
-</html>
+</html>++555555
