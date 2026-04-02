@@ -319,6 +319,20 @@
         .forum-detail-bottom { position: absolute; bottom: 0; left: 0; width: 100%; padding: 10px 15px 25px; background: rgba(255,255,255,0.95); border-top: 1px solid rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; z-index: 10; }
         .forum-detail-bottom input { flex: 1; margin-bottom: 0; border-radius: 20px; padding: 10px 15px; border: 1px solid #ddd; background: #f5f5f5; }
 
+        /* 删除按钮 */
+        .forum-post-delete {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    cursor: pointer;
+    padding: 5px;
+    z-index: 10;
+    transition: opacity 0.1s;
+}
+.forum-post-delete:active {
+    opacity: 0.6;
+}
+
         /* ================= 手机端及 PWA 全面屏适配 ================= */
         @media screen and (max-width: 768px) {
             /* 1. 移除假手机边框，让内容占满真实屏幕 */
@@ -2321,12 +2335,16 @@
         // 绑定点击事件，列表页点击进入详情
         const clickEvent = isDetail ? '' : `onclick="openForumDetail(${post.id})"`;
 
+        // 列表页右上角的删除按钮 (详情页不显示，因为详情页顶部已有)
+        const deleteBtnHtml = !isDetail ? `<div class="forum-post-delete" onclick="deleteSingleForumPost(${post.id}, event)"><i data-lucide="trash-2" style="width:16px;height:16px;color:#ccc;"></i></div>` : '';
+
         return `
             <div class="forum-post" id="forum-${post.id}">
+                ${deleteBtnHtml}
                 <div ${clickEvent}>
                     <div class="forum-post-header">
                         <img class="forum-post-avatar" src="${post.avatar}">
-                        <div>
+                        <div style="padding-right: 25px;"> <!-- 留出右上角删除按钮的空间 -->
                             <div class="forum-post-name">${post.author} ${anonTag}</div>
                             <div class="forum-post-time">${post.time || '刚刚'}</div>
                         </div>
@@ -2345,6 +2363,27 @@
                     </div>
                 </div>
             </div>`;
+    }
+    
+    function deleteSingleForumPost(postId, event) {
+        if (event) event.stopPropagation(); // 阻止点击事件冒泡，防止打开详情页
+        
+        if (confirm("确定要删除这条帖子吗？")) {
+            // 从所有帖子缓存和我的帖子缓存中移除
+            appData.forum.posts = appData.forum.posts.filter(p => p.id !== postId);
+            appData.forum.myPosts = appData.forum.myPosts.filter(p => p.id !== postId);
+            
+            safeSaveData();
+            
+            // 根据当前所在的 Tab 重新渲染页面
+            if (document.getElementById('forum-tab-home').classList.contains('active')) {
+                renderForumHome();
+            } else if (document.getElementById('forum-tab-profile').classList.contains('active')) {
+                renderForumProfile();
+            }
+            
+            customAlert("帖子已删除");
+        }
     }
 
     function renderForumHome() {
