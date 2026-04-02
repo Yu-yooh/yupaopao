@@ -2140,24 +2140,30 @@
         const memberChar = appData.characters.find(c => c.id === memberId);
         if (!group || !memberChar) return;
 
+        const myName = group.userName || appData.weibo.nickname || '我';
+
         let memberNames = group.memberIds.map(id => {
             const c = appData.characters.find(char => char.id === id);
             return c ? c.name : '';
         }).filter(n => n !== '');
 
-        let finalSystemPrompt = `你现在处于一个名为“${group.name}”的群聊中。\n群成员有：${memberNames.join('、')} 以及 用户。\n你当前扮演的角色是：${memberChar.name}。\n\n【你的个人设定】\n${memberChar.prompt}`;
+        let finalSystemPrompt = `你现在处于一个名为“${group.name}”的群聊中。\n群成员有：${memberNames.join('、')} 以及 用户（名字/称呼：${myName}）。\n你当前扮演的角色是：${memberChar.name}。\n\n【你的个人设定】\n${memberChar.prompt}`;
         
+        if (group.userPrompt) {
+            finalSystemPrompt += `\n\n【用户设定】\n用户的详细设定如下：\n${group.userPrompt}`;
+        }
+
         const selectedWbs = memberChar.worldbookIds || [];
         if (selectedWbs.length > 0) { let wbTexts = []; selectedWbs.forEach(wbId => { const wb = appData.worldbooks.find(w => w.id === wbId); if (wb && wb.entries) { const activeEntries = wb.entries.filter(e => e.enabled); activeEntries.forEach(e => wbTexts.push(`【${e.keys}】\n${e.content}`)); } }); if (wbTexts.length > 0) finalSystemPrompt += `\n\n【世界观设定】\n${wbTexts.join('\n\n')}`; }
         
-        finalSystemPrompt += `\n\n请注意：\n1. 你只能以 ${memberChar.name} 的身份发言。\n2. 请结合群聊上下文和其他人的发言进行自然的回复或互动。\n3. 如果你想连续发送多条消息，请用换行符分隔每一条消息。\n4. 严格输出 JSON 格式：{"reply": "你的回复内容"}`;
+        finalSystemPrompt += `\n\n请注意：\n1. 你只能以 ${memberChar.name} 的身份发言。\n2. 请结合群聊上下文和其他人的发言进行自然的回复或互动。如果你需要回复或提及用户，请使用“@${myName}”。\n3. 如果你想连续发送多条消息，请用换行符分隔每一条消息。\n4. 严格输出 JSON 格式：{"reply": "你的回复内容"}`;
 
         let cleanHistory = appData.chats[groupId].filter(m => m.role !== 'system').map(m => {
             let apiContent = m.content;
             apiContent = apiContent.replace(/\[图片:.*?\]/g, '[发送了一张图片]').replace(/\[表情包:.*?\]/g, '[发送了一个表情包]');
             
             if (m.role === 'user') {
-                return { role: 'user', content: `[用户]: ${apiContent}` };
+                return { role: 'user', content: `[${myName}]: ${apiContent}` };
             } else {
                 if (m.senderId === memberId) {
                     return { role: 'assistant', content: apiContent };
