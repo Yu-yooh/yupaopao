@@ -145,6 +145,7 @@
         .msg-user { background: #007aff; color: white; border-top-right-radius: 4px; }
         .msg-ai { background: white; color: var(--text-color); border-top-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .msg-system { background: transparent; color: #888; font-size: 12px; text-align: center; max-width: 90%; }
+        .msg-no-bubble { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
         
         .chat-bottom-wrapper { display: flex; flex-direction: column; background: rgba(255,255,255,0.9); border-top: 1px solid rgba(0,0,0,0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
         .chat-toolbar { display: flex; justify-content: space-around; padding: 12px 10px 8px; }
@@ -1945,7 +1946,16 @@
                 bubbleWrapper.appendChild(nameDiv);
             }
 
-            const bubble = document.createElement('div'); bubble.className = `msg-bubble msg-${type}`;
+            const bubble = document.createElement('div'); 
+            bubble.className = `msg-bubble msg-${type}`;
+            
+            // 【新增逻辑】：检测这条消息是否纯粹是图片、表情包、红包或转账
+            const trimmedContent = msgObj.content.trim();
+            const isSpecial = /^\[(图片|表情包|红包|转账):[\s\S]*\]$/.test(trimmedContent);
+            if (isSpecial) {
+                bubble.classList.add('msg-no-bubble'); // 如果是特殊消息，添加无气泡样式
+            }
+
             let safeText = msgObj.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             safeText = safeText.replace(/\[图片:\s*(data:image\/.*?;base64,[^ |\]]+)(?:\s*\|\s*描述:\s*([^\]]*))?\]/g, (match, b64, desc) => { let html = `<img src="${b64}" style="max-width:100%; border-radius:8px; margin-top:5px; display:block;">`; if (desc) { html += `<div style="font-size:12px; color:#e0e0e0; margin-top:4px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px;">描述: ${desc}</div>`; } return html; });
             safeText = safeText.replace(/\[表情包:\s*([^\]]+)\]/g, '<img src="$1" style="max-width:120px; background:transparent; margin-top:5px; display:block;">');
